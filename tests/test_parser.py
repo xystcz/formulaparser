@@ -89,7 +89,7 @@ class TestParser(unittest.TestCase):
     def test_operator(self):
         parser = Parser()
         parser.register_unary_op('&*', lambda x: x ** 3)
-        parser.register_binary_op('$%', lambda x, y: (x + y) * 2, 5500)
+        parser.register_binary_op('$%', lambda x, y: (x + y) * 2, 16500)
         formula = '&*3 + 2000 $% 30 / 6 + max(1, 2, 23)'
         ast = parser.parse(formula)
         self.assertEqual(parser.evaluate(ast), 4060)

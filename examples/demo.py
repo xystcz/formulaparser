@@ -81,7 +81,7 @@ def demo4():
     print('定义单目运算符 "&*", 效果为计算当前值的三次方并返回')
     parser.register_unary_op('&*', lambda x: x ** 3)
     print('定义双目运算符 "¥&", 优先级位于加减与乘除之间, 效果为将左右操作数相加后乘2并返回')
-    parser.register_binary_op('$%', lambda x, y: (x+y)*2, 5500)
+    parser.register_binary_op('$%', lambda x, y: (x+y)*2, 16500)
 
     # 将公式解析为语法树
     formula = '&*3 + 2000 $% 30 / 6'

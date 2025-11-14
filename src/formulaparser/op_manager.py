@@ -5,6 +5,39 @@ from typing import Set, Dict, Callable, Any
 class OperatorManager:
     AVAILABLE_CHARS = '+-*/<>=`~!@#$%^&|?'
 
+    PREDEFINE_BINARY_OPERATORS = {
+        # 比较运算
+        '<':  (operator.lt,       11000),
+        '<=': (operator.le,       11000),
+        '==': (operator.eq,       11000),
+        '!=': (operator.ne,       11000),
+        '>=': (operator.ge,       11000),
+        '>':  (operator.gt,       11000),
+        # 按位或
+        '|':  (operator.or_,      12000),
+        # 按位异或
+        '^':  (operator.xor,      13000),
+        # 按位与
+        '&':  (operator.and_,     14000),
+        # 移位
+        '<<': (operator.lshift,   15000),
+        '>>': (operator.rshift,   15000),
+        # 加和减
+        '+':  (operator.add,      16000),
+        '-':  (operator.sub,      16000),
+        # 乘，除，整除，取余，矩阵乘
+        '*':  (operator.mul,      17000),
+        '/':  (operator.truediv,  17000),
+        '//': (operator.floordiv, 17000),
+        '%':  (operator.mod,      17000),
+        '@':  (operator.matmul,   17000),
+    }
+    PREDEFINE_UNARY_OPERATORS = {
+        '+': operator.pos,
+        '-': operator.neg,
+        '~': operator.invert,
+    }
+
     def __init__(self):
         self.binary_ops: Set[str] = set()
         self.binary_funcs: Dict[str, Callable[[Any, Any], Any]] = dict()
@@ -13,13 +46,11 @@ class OperatorManager:
         self.unary_ops: Set[str] = set()
         self.unary_funcs: Dict[str, Callable[[Any], Any]] = dict()
 
-        self.register_binary_op('+', operator.add, 5000)
-        self.register_binary_op('-', operator.sub, 5000)
-        self.register_binary_op('*', operator.mul, 6000)
-        self.register_binary_op('/', operator.truediv, 6000)
+        for op, (func, precedence) in self.PREDEFINE_BINARY_OPERATORS.items():
+            self.register_binary_op(op, func, precedence)
 
-        self.register_unary_op('+', operator.pos)
-        self.register_unary_op('-', operator.neg)
+        for op, func in self.PREDEFINE_UNARY_OPERATORS.items():
+            self.register_unary_op(op, func)
 
     def is_operator_legal(self, op: str) -> bool:
         return all(c in self.AVAILABLE_CHARS for c in op)

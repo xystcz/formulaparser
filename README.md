@@ -122,7 +122,7 @@ print(f'解析后的语法树：')
 print(ast.render())
 print('-' * 50)
 
-print(f'公式求值：{parser.evaluate(ast)}')
+print(f'公式求值：{ast.evaluate()}')
 print('=' * 60)
 ```
 
@@ -146,7 +146,7 @@ print(ast.render())
 print('-' * 50)
 
 context = dict(abc=6, _efg=7)
-print(f'令 (abc=6, _efg=7), 带入公式求值: {parser.evaluate(ast, context)}')
+print(f'令 (abc=6, _efg=7), 带入公式求值: {ast.evaluate(context)}')
 print('=' * 60)
 ```
 
@@ -175,7 +175,7 @@ print(f'解析后的语法树：')
 print(ast.render())
 print('-' * 50)
 context = dict(abc=3)
-print(f'带入 abc=3, 公式求值：{parser.evaluate(ast, context)}')
+print(f'带入 abc=3, 公式求值：{ast.evaluate(context)}')
 print('=' * 60)
 ```
 
@@ -204,7 +204,7 @@ print(f'解析后的语法树：')
 print(ast.render())
 print('-' * 50)
 
-print(f'公式求值：{parser.evaluate(ast)}')
+print(f'公式求值：{ast.evaluate()}')
 print('=' * 60)
 ```
 
@@ -262,7 +262,32 @@ print('-' * 50)
 
 df = pd.DataFrame([[1,19,3], [2,5,8], [1,5,3], [2,9,7]], columns=['a', 'b', 'c'])
 print(f'令变量 df = \n{df}')
-print(f'公式求值：\n{parser.evaluate(ast, dict(df=df))}')
+print(f'公式求值：\n{ast.evaluate(dict(df=df))}')
+print('=' * 60)
+```
+
+
+### 支持部分Python语法，如list/tuple/property/slice/kwargs等
+```python
+import operator
+from formulaparser import Parser
+
+print('支持部分Python语法，如list/tuple/property/slice/kwargs等')
+print('=' * 60)
+# 创建解析器
+parser = Parser()
+# 将公式解析为语法树
+formula = '2 + 3 * max((5, 6, 2)) + sum([5, 1, 2, abc][::2], start=1) - operator.sub(1, 2)'
+ast = parser.parse(formula)
+
+print(f'公式: {formula}')
+print(f'解析后的公式: {ast}')
+print('-' * 50)
+print(f'解析后的语法树：')
+print(ast.render())
+print('-' * 50)
+context = dict(abc=3, operator=operator)
+print(f'带入 abc=3, operator="operator模块"， 公式求值：{ast.evaluate(context)}')
 print('=' * 60)
 ```
 

@@ -13,8 +13,13 @@ class TokenType(Enum):
     STRING = 'STRING'           # 字符串
     OPERATOR = 'OPERATOR'       # 运算符
     IDENTIFIER = 'IDENTIFIER'   # 标识符（变量名或函数名）
-    LPAREN = 'LPAREN'           # 左括号
-    RPAREN = 'RPAREN'           # 右括号
+    LPAREN = 'LPAREN'           # 左圆括号
+    RPAREN = 'RPAREN'           # 右圆括号
+    LSQUARE = 'LSQUARE'         # 左方括号
+    RSQUARE = 'RSQUARE'         # 右方括号
+    ATTRIBUTION = 'ATTRIBUTION' # 属性
+    ASSIGNMENT = 'ASSIGNMENT'   # keyword参数
+    COLON = 'COLON'             # 切片
     COMMA = 'COMMA'             # 逗号
     EOF = 'EOF'                 # 结束符
 
@@ -101,6 +106,9 @@ class Lexer:
                 for _ in range(len(op)):
                     self.advance()
                 return Token(TokenType.OPERATOR, op, start_pos)
+        if self.current_char == '=':
+            self.advance()
+            return Token(TokenType.ASSIGNMENT, '=', start_pos)
         raise ValueError(f'不支持的运算符，位置：{start_pos}')
 
     def read_identifier(self) -> Token:
@@ -116,6 +124,17 @@ class Lexer:
             self.advance()
 
         return Token(TokenType.IDENTIFIER, identifier, start_pos)
+
+    def read_attribution(self) -> Token:
+        start_pos = self.position
+
+        attributions = re.match(r'^(\.[a-zA-Z_]([a-zA-Z0-9_]+)?)+', self.text[start_pos:]).group(0)
+
+        for _ in attributions:
+            self.advance()
+
+        return Token(TokenType.ATTRIBUTION, attributions.split('.')[1:], start_pos)
+
 
     def tokenize(self) -> List[Token]:
         """将文本转换为token列表"""
@@ -142,6 +161,11 @@ class Lexer:
                 tokens.append(self.read_identifier())
                 continue
 
+            # 属性
+            if self.current_char == '.':
+                tokens.append(self.read_attribution())
+                continue
+
             # 运算符
             if self.current_char in self.op_mgr.AVAILABLE_CHARS:
                 tokens.append(self.read_operator())
@@ -158,9 +182,24 @@ class Lexer:
                 self.advance()
                 continue
 
+            if self.current_char == '[':
+                tokens.append(Token(TokenType.LSQUARE, '[', self.position))
+                self.advance()
+                continue
+
+            if self.current_char == ']':
+                tokens.append(Token(TokenType.RSQUARE, ']', self.position))
+                self.advance()
+                continue
+
             # 逗号
             if self.current_char == ',':
                 tokens.append(Token(TokenType.COMMA, ',', self.position))
+                self.advance()
+                continue
+
+            if self.current_char == ':':
+                tokens.append(Token(TokenType.COLON, ':', self.position))
                 self.advance()
                 continue
 

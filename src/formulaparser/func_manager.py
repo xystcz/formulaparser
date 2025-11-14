@@ -28,7 +28,6 @@ class FunctionManager:
         'not_':        operator.not_,         # 取反（逻辑）: not a,
         'pos':         operator.pos,          # 正数: + a,
         'rshift':      operator.rshift,       # 右移: a >> b,
-        'mod':         operator.mod,          # 字符串格式化: s % obj,
         'sub':         operator.sub,          # 减法: a - b,
         'truth':       operator.truth,        # 真值测试: obj,
         'lt':          operator.lt,           # 比较: a < b,
@@ -71,3 +70,6 @@ class FunctionManager:
             return self.functions[name]
         else:
             raise KeyError(f'函数不存在"{name}"')
+
+    def has_func(self, name: str):
+        return name in self.functions

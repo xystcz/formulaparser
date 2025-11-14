@@ -1,4 +1,5 @@
 import unittest
+import operator
 
 from formulaparser import Parser
 
@@ -12,7 +13,7 @@ class TestParser(unittest.TestCase):
         self.assertRaises(ValueError, parser.parse, 'a @%@ b')
 
         ast = parser.parse('a + b')
-        self.assertRaises(KeyError, parser.evaluate, ast, context=dict(a=1, c=3))
+        self.assertRaises(KeyError, ast.evaluate, context=dict(a=1, c=3))
 
     def test_parser(self):
         parser = Parser()
@@ -37,7 +38,7 @@ class TestParser(unittest.TestCase):
         ]
         for formula, ans in cases:
             ast = parser.parse(formula)
-            self.assertEqual(parser.evaluate(ast, context), ans)
+            self.assertEqual(ast.evaluate(context), ans)
 
     def test_number(self):
         parser = Parser()
@@ -49,7 +50,7 @@ class TestParser(unittest.TestCase):
         ]
         for formula, ans in cases:
             ast = parser.parse(formula)
-            self.assertEqual(parser.evaluate(ast, context), ans)
+            self.assertEqual(ast.evaluate(context), ans)
 
         cases = [
             ('abc + 2.1e11 - bcd', context['abc'] + 2.1e11 - context['bcd']),
@@ -58,7 +59,7 @@ class TestParser(unittest.TestCase):
         ]
         for formula, ans in cases:
             ast = parser.parse(formula)
-            self.assertAlmostEqual(parser.evaluate(ast, context), ans, 10)
+            self.assertAlmostEqual(ast.evaluate(context), ans, 10)
 
     def test_variable_node(self):
         parser = Parser()
@@ -81,10 +82,9 @@ class TestParser(unittest.TestCase):
 
         formula = 'abc * neg_sum(abc, 3, bcd, 8) + ratio_sum(bcd, 1, 3, 6) + 9'
         ast = parser.parse(formula)
-        self.assertEqual(parser.evaluate(ast, context), -26)
+        self.assertEqual(ast.evaluate(context), -26)
 
         self.assertRaises(ValueError, parser.register_function, 'sum', sum)
-        self.assertRaises(KeyError, parser.parse, 'run()')
 
     def test_operator(self):
         parser = Parser()
@@ -92,7 +92,7 @@ class TestParser(unittest.TestCase):
         parser.register_binary_op('$%', lambda x, y: (x + y) * 2, 16500)
         formula = '&*3 + 2000 $% 30 / 6 + max(1, 2, 23)'
         ast = parser.parse(formula)
-        self.assertEqual(parser.evaluate(ast), 4060)
+        self.assertEqual(ast.evaluate(), 4060)
 
         self.assertRaises(ValueError, parser.register_unary_op, '.*', lambda x: x)
         self.assertRaises(ValueError, parser.register_unary_op, '+', lambda x: x)
@@ -100,3 +100,50 @@ class TestParser(unittest.TestCase):
         self.assertRaises(ValueError, parser.register_binary_op, '.*', lambda x, y: x+y, 20)
         self.assertRaises(ValueError, parser.register_binary_op, '*=', lambda x, y: x+y, -1)
         self.assertRaises(ValueError, parser.register_binary_op, '+', lambda x, y: x+y, 20)
+
+    def test_iterator(self):
+        parser = Parser()
+        context = dict(abc=5, bcd=9, operator=operator)
+
+        ast = parser.parse('[1, 2, abc, 66, 55][::2]')
+        ans = ast.evaluate(context)
+        self.assertIsInstance(ans, list)
+        self.assertEqual(ans, [1, 5, 55])
+
+        ast = parser.parse('(1, 2, abc, 66, 55, 99)[1:4:2]')
+        ans = ast.evaluate(context)
+        self.assertIsInstance(ans, tuple)
+        self.assertEqual(ans, (2, 66))
+
+    def test_function(self):
+        parser = Parser()
+        context = dict(abc=5, bcd=9)
+        cases = [
+            ('sum([1, 2, 9, abc])', 17),
+            ('sum([1, 2, 9, abc], start=2)', 19),
+            ('sum([1, 2, 9, abc][1:], start=0)', 16),
+            ('sum((1, 2, 9, abc)[1:], start=0)', 16),
+        ]
+        for formula, ans in cases:
+            ast = parser.parse(formula)
+            self.assertEqual(ast.evaluate(context), ans)
+
+    def test_property(self):
+        parser = Parser()
+        context = dict(abc=5, bcd=9, operator=operator)
+
+        ast = parser.parse('operator.add(abc, bcd)')
+        ans = ast.evaluate(context)
+        self.assertEqual(ans, 14)
+
+    def test_pythonic(self):
+        parser = Parser()
+        context = dict(abc=5, bcd=9, operator=operator)
+
+        ast = parser.parse('sum([1,2,3], start=bcd) + max((4 ,5 ,7)) * operator.add(abc, bcd) + sum([1, 2, 3, 4, 5, 6][2::3])')
+        self.assertEqual(ast.evaluate(context), 122)
+
+    def test_repr(self):
+        parser = Parser()
+        ast = parser.parse('sum([1,2,3], start=bcd) + max((4 ,5 ,7)) * operator.add(abc, bcd) + sum([5, 6][::3])')
+        self.assertEqual(f'{ast!r}', 'BinaryOpNode(+, BinaryOpNode(+, FunctionCallNode(IdentifierNode(sum), ArgsNode(ListNode[NumberNode(1), NumberNode(2), NumberNode(3)]), KwargsNode(start=IdentifierNode(bcd))), BinaryOpNode(*, FunctionCallNode(IdentifierNode(max), ArgsNode(TupleNode(NumberNode(4), NumberNode(5), NumberNode(7))), KwargsNode()), FunctionCallNode(AttributionNode(IdentifierNode(operator).add), ArgsNode(IdentifierNode(abc), IdentifierNode(bcd)), KwargsNode()))), FunctionCallNode(IdentifierNode(sum), ArgsNode(ItemNode(ListNode[NumberNode(5), NumberNode(6)], SliceNode(NoneNode:NoneNode:NumberNode(3)))), KwargsNode()))')

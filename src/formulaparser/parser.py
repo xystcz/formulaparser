@@ -1,15 +1,10 @@
-from typing import Dict, Any, Callable
+from typing import Any, Callable
 from formulaparser.func_manager import FunctionManager
 from formulaparser.op_manager import OperatorManager
 from formulaparser.lexer import Token, TokenType, Lexer
 from formulaparser.ast_nodes import (
-    ASTNode,
-    NumberNode,
-    StringNode,
-    UnaryOpNode,
-    BinaryOpNode,
-    FunctionCallNode,
-    VariableNode
+    ASTNode, NumberNode, StringNode, UnaryOpNode, BinaryOpNode, FunctionCallNode, IdentifierNode, SliceNode,
+    AttributionNode, NoneNode, ItemNode, ArgsNode, KwargsNode
 )
 
 
@@ -23,7 +18,7 @@ class _Parser:
         self.tokens = Lexer(op_mgr, text).tokenize()
         self.position = 0
         self.current_token = self.tokens[0] if self.tokens else None
-        self.variable_nodes = dict()
+        self.identifier_nodes = dict()
 
     def advance(self):
         """前进到下一个token"""
@@ -58,7 +53,7 @@ class _Parser:
                 break
             self.advance()
             right = self.parse_expression(precedence)
-            left = BinaryOpNode(operator, left, right)
+            left = BinaryOpNode(self.op_mgr, operator, left, right)
 
         return left
 
@@ -70,7 +65,7 @@ class _Parser:
             operator = self.current_token.value
             self.advance()
             operand = self.parse_unary()
-            return UnaryOpNode(operator, operand)
+            return UnaryOpNode(self.op_mgr, operator, operand)
 
         return self.parse_primary()
 
@@ -80,58 +75,134 @@ class _Parser:
 
         # 数字
         if token.type == TokenType.NUMBER:
+            ret = NumberNode(token.value)
             self.advance()
-            return NumberNode(token.value)
-
         # 字符串
-        if token.type == TokenType.STRING:
+        elif token.type == TokenType.STRING:
+            ret = StringNode(token.value)
             self.advance()
-            return StringNode(token.value)
-
-        # 括号表达式
-        if token.type == TokenType.LPAREN:
-            self.advance()
-            expr = self.parse_expression()
-            if self.current_token.type != TokenType.RPAREN:
-                raise ValueError(f'缺少右括号，位置：{self.current_token.position}')
-            self.advance()
-            return expr
-
         # 变量/函数调用
-        if token.type == TokenType.IDENTIFIER:
-            identifier = token.value
+        elif token.type == TokenType.IDENTIFIER:
+            if token.value not in self.identifier_nodes:
+                self.identifier_nodes[token.value] = IdentifierNode(self.func_mgr, token.value)
+            ret = self.identifier_nodes[token.value]
             self.advance()
+        # 圆括号表达式
+        elif token.type == TokenType.LPAREN:
+            ret = self.parse_parenthesis()
+        # 方括号表达式
+        elif token.type == TokenType.LSQUARE:
+            ret = self.parse_square()
+        else:
+            raise ValueError(f'意外的token：{token}')
 
-            if self.current_token.type != TokenType.LPAREN:
-                # 识别为变量，直接返回
-                if identifier not in self.variable_nodes:
-                    self.variable_nodes[identifier] = VariableNode(identifier)
-                return self.variable_nodes[identifier]
+        while True:
+            if self.current_token.type == TokenType.LPAREN:
+                ret = self.parse_parenthesis(ret)
+            elif self.current_token.type == TokenType.LSQUARE:
+                ret = self.parse_square(ret)
+            elif self.current_token.type == TokenType.ATTRIBUTION:
+                ret = AttributionNode(ret, self.current_token.value[:])
+                self.advance()
+            else:
+                break
+        return ret
 
-            # 识别为函数
-            if identifier not in self.func_mgr.functions:
-                raise KeyError(f'函数"{identifier}"不存在')
+    def parse_parenthesis(self, func: ASTNode=None) -> ASTNode:
+        start_position = self.current_token.position
+        self.advance()
+        # 解析参数列表
+        is_func = func is not None
+        args, kwargs, extra_comma = ArgsNode([]), KwargsNode({}), False
+        if self.current_token.type != TokenType.RPAREN:
+            node = self.parse_expression()
+            if is_func and isinstance(node, IdentifierNode) and self.current_token.type == TokenType.ASSIGNMENT:
+                self.advance()
+                kwargs.add(node.name, self.parse_expression())
+            else:
+                args.append(node)
+            while self.current_token.type == TokenType.COMMA:
+                self.advance()
+                if self.current_token.type == TokenType.RPAREN:
+                    if len(args) + len(kwargs) == 0:
+                        raise ValueError(f'意外的token：{self.current_token}')
+                    extra_comma = True
+                else:
+                    node = self.parse_expression()
+                    if is_func:
+                        if self.current_token.type == TokenType.ASSIGNMENT:
+                            if not isinstance(node, IdentifierNode):
+                                raise ValueError(f'错误的赋值符号，位置: {self.current_token.position}')
+                            self.advance()
+                            kwargs.add(node.name, self.parse_expression())
+                        else:
+                            if kwargs:
+                                raise ValueError(f'顺序参数必须在关键字参数前，位置：{self.current_token.position}')
+                            args.append(node)
+                    else:
+                        args.append(node)
+        if self.current_token.type != TokenType.RPAREN:
+            raise ValueError(f'缺少右圆括号，位置：{start_position}')
+        self.advance()
+        if is_func:
+            return FunctionCallNode(func, args, kwargs)
+        else:
+            if kwargs:
+                raise KeyError(f'元组推导式不支持keyword，位置：{start_position}')
+            if len(args) == 1 and not extra_comma:
+                return args[0]
+            else:
+                return args.to_tuple()
 
-            self.advance()  # 跳过左括号
+    def parse_square(self, slice_obj: ASTNode=None) -> ASTNode:
+        self.advance()
+        # 解析参数列表
+        is_slice = slice_obj is not None
+        args, extra_comma = ArgsNode([]), False
+        parse_func = self.parse_slice if is_slice else self.parse_expression
+        if self.current_token.type != TokenType.RSQUARE:
+            args.append(parse_func())
+            while self.current_token.type == TokenType.COMMA:
+                self.advance()
+                if self.current_token.type == TokenType.RSQUARE:
+                    if len(args) == 0:
+                        raise ValueError(f'意外的token：{self.current_token}')
+                    extra_comma = True
+                else:
+                    args.append(parse_func())
+        if self.current_token.type != TokenType.RSQUARE:
+            raise ValueError(f'缺少右圆括号，位置：{self.current_token.position}')
+        self.advance()
+        if is_slice:
+            if len(args) == 1 and not extra_comma:
+                return ItemNode(slice_obj, args[0])
+            else:
+                return ItemNode(slice_obj, args.to_tuple())
+        else:
+            return args.to_list()
 
-            # 解析参数列表
-            arguments = []
-            if self.current_token.type != TokenType.RPAREN:
-                arguments.append(self.parse_expression())
-
-                while self.current_token.type == TokenType.COMMA:
+    def parse_slice(self):
+        cur_position = self.current_token.position
+        args, is_slice = [], False
+        while self.current_token.type not in (TokenType.COMMA, TokenType.RSQUARE):
+            if self.current_token.type == TokenType.COLON:
+                args.append(NoneNode())
+                is_slice = True
+                self.advance()
+            else:
+                args.append(self.parse_expression())
+                if self.current_token.type == TokenType.COLON:
+                    is_slice = True
                     self.advance()
-                    arguments.append(self.parse_expression())
-
-            if self.current_token.type != TokenType.RPAREN:
-                raise ValueError(f'函数调用缺少右括号，位置：{self.current_token.position}')
-
-            self.advance()  # 跳过右括号
-
-            return FunctionCallNode(identifier, arguments)
-
-        raise ValueError(f'意外的token：{token}')
-
+        if is_slice:
+            if len(args) > 3:
+                raise ValueError(f'切片参数个数大于3，位置：{cur_position}')
+            start, end, stop = args + [NoneNode() for _ in range(3-len(args))]
+            return SliceNode(start, end, stop)
+        else:
+            if len(args) != 1:
+                raise ValueError(f'切片参数解析失败，位置：{cur_position}')
+            return args[0]
 
 class Parser:
     def __init__(self):
@@ -150,25 +221,3 @@ class Parser:
 
     def register_unary_op(self, op: str, func: Callable[[Any], Any]):
         self.op_mgr.register_unary_op(op, func)
-
-    def evaluate(self, node: ASTNode, context: Dict[str, Any]=None) -> Any:
-        """求值AST节点"""
-        if isinstance(node, NumberNode):
-            return node.value
-        elif isinstance(node, StringNode):
-            return node.value
-        elif isinstance(node, VariableNode):
-            if context and node.name in context:
-                return context[node.name]
-            else:
-                raise KeyError(f'变量不存在: {node.name}')
-        elif isinstance(node, UnaryOpNode):
-            return self.op_mgr.unary_funcs[node.operator](self.evaluate(node.operand, context))
-        elif isinstance(node, BinaryOpNode):
-            left = self.evaluate(node.left, context)
-            right = self.evaluate(node.right, context)
-            return self.op_mgr.binary_funcs[node.operator](left, right)
-        elif isinstance(node, FunctionCallNode):
-            return self.func_mgr.get_func(node.name)(*[self.evaluate(arg, context) for arg in node.arguments])
-        else:
-            raise ValueError(f'未知的节点类型：{type(node)}')

@@ -1,0 +1,38 @@
+[build-system]
+requires = ["setuptools >= 77.0.3"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "formulaparser"
+dynamic = ["version"]
+dependencies = []
+readme = "README.md"
+requires-python = ">=3.8"
+authors = [
+  {name = "xjunyo", email = "xystcz@gmail.com"},
+]
+maintainers = [
+  {name = "xjunyo", email = "xystcz@gmail.com"},
+]
+description = "Formula Parser!"
+license = "MIT"
+keywords = ["formula", "parser"]
+classifiers = [
+  "Development Status :: 5 - Production/Stable",
+  "Programming Language :: Python"
+]
+
+[tool.setuptools.dynamic]
+version = {attr = "formulaparser.__version__"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+minversion = "6.0"
+addopts = [
+    "--import-mode=importlib",
+]
+testpaths = [
+    "tests",
+]

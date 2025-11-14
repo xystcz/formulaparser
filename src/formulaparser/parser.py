@@ -104,6 +104,8 @@ class _Parser:
             elif self.current_token.type == TokenType.ATTRIBUTION:
                 ret = AttributionNode(ret, self.current_token.value[:])
                 self.advance()
+            elif self.current_token.type in (TokenType.STRING, TokenType.NUMBER, TokenType.IDENTIFIER):
+                raise ValueError(f'意外的token：{self.current_token}')
             else:
                 break
         return ret

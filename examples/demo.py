@@ -41,7 +41,7 @@ def demo2():
     print('-' * 50)
 
     context = dict(abc=6, _efg=7)
-    print(f'令 (abc=6, _efg=7), 带入公式求值: {ast.evaluate(context)}')
+    print(f'令 (abc=6, _efg=7), 代入公式求值: {ast.evaluate(context)}')
     print('=' * 60)
 
 
@@ -68,7 +68,7 @@ def demo3():
     print(ast.render())
     print('-' * 50)
     context = dict(abc=3)
-    print(f'带入 abc=3, 公式求值：{ast.evaluate(context)}')
+    print(f'代入 abc=3, 公式求值：{ast.evaluate(context)}')
     print('=' * 60)
 
 
@@ -172,7 +172,7 @@ def demo6():
     print(ast.render())
     print('-' * 50)
     context = dict(abc=3, operator=operator)
-    print(f'带入 abc=3, operator="operator模块"， 公式求值：{ast.evaluate(context)}')
+    print(f'代入 abc=3, operator="operator模块"， 公式求值：{ast.evaluate(context)}')
     print('=' * 60)
 
 

@@ -185,20 +185,24 @@ class _Parser:
 
     def parse_slice(self):
         cur_position = self.current_token.position
-        args, is_slice = [], False
+        args, is_slice, colon_cnt = [], False, 0
         while self.current_token.type not in (TokenType.COMMA, TokenType.RSQUARE):
             if self.current_token.type == TokenType.COLON:
                 args.append(NoneNode())
                 is_slice = True
+                colon_cnt += 1
                 self.advance()
             else:
                 args.append(self.parse_expression())
                 if self.current_token.type == TokenType.COLON:
                     is_slice = True
+                    colon_cnt += 1
                     self.advance()
         if is_slice:
             if len(args) > 3:
                 raise ValueError(f'切片参数个数大于3，位置：{cur_position}')
+            if colon_cnt > 2:
+                raise ValueError(f'冒号过多，位置：{cur_position}')
             start, end, stop = args + [NoneNode() for _ in range(3-len(args))]
             return SliceNode(start, end, stop)
         else:
